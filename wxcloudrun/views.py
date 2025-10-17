@@ -1,7 +1,7 @@
 from datetime import datetime
 from flask import request
 from run import app
-from wxcloudrun.dao import delete_counterbyid, query_counterbyid, insert_counter, update_counterbyid, query_user_by_uid, query_all_users, insert_user, update_user_by_uid, delete_user_by_uid
+from wxcloudrun.dao import delete_counterbyid, query_counterbyid, insert_counter, update_counterbyid, query_user_by_uid, insert_user, update_user_by_uid, delete_user_by_uid
 from wxcloudrun.model import Counters, User
 from wxcloudrun.response import make_succ_empty_response, make_succ_response, make_err_response
 
