@@ -1,9 +1,11 @@
 from datetime import datetime
 from flask import request
 from run import app
-from wxcloudrun.dao import delete_counterbyid, query_counterbyid, insert_counter, update_counterbyid, query_user_by_uid, insert_user, update_user_by_uid, delete_user_by_uid
+from wxcloudrun.dao import delete_counterbyid, query_counterbyid, insert_counter, update_counterbyid, query_user_by_uid, query_user_by_openid, insert_user, update_user_by_uid, delete_user_by_uid
 from wxcloudrun.model import Counters, User
 from wxcloudrun.response import make_succ_empty_response, make_succ_response, make_err_response
+import requests
+import config
 
 
 
@@ -165,3 +167,89 @@ def delete_user(uid):
         return make_err_response('用户不存在或删除失败')
     
     return make_succ_empty_response()
+
+
+# ==================== 微信小程序登录接口 ====================
+
+@app.route('/api/auth/login', methods=['POST'])
+def wechat_login():
+    """
+    微信小程序登录接口
+    :return: 登录结果
+    """
+    params = request.get_json()
+    
+    # 检查必需参数
+    if 'code' not in params:
+        return make_err_response('缺少code参数')
+    
+    code = params['code']
+    
+    try:
+        # 调用微信接口获取openid和session_key
+        wechat_url = 'https://api.weixin.qq.com/sns/jscode2session'
+        wechat_params = {
+            'appid': config.WECHAT_APPID,
+            'secret': config.WECHAT_SECRET,
+            'js_code': code,
+            'grant_type': 'authorization_code'
+        }
+        
+        response = requests.get(wechat_url, params=wechat_params, timeout=10)
+        wechat_data = response.json()
+        
+        # 检查微信接口返回结果
+        if 'errcode' in wechat_data and wechat_data['errcode'] != 0:
+            error_msg = wechat_data.get('errmsg', '微信登录失败')
+            return make_err_response(f'微信登录失败: {error_msg}')
+        
+        if 'openid' not in wechat_data:
+            return make_err_response('微信登录失败: 未获取到openid')
+        
+        openid = wechat_data['openid']
+        session_key = wechat_data.get('session_key', '')
+        unionid = wechat_data.get('unionid', '')
+        
+        # 查询用户是否已存在
+        existing_user = query_user_by_openid(openid)
+        
+        if existing_user:
+            # 用户已存在，返回用户信息
+            user_data = {
+                'uid': existing_user.uid,
+                'nickname': existing_user.nickname,
+                'avatar': existing_user.avatar,
+                'createdAt': existing_user.created_at.isoformat(),
+                'isNewUser': False
+            }
+        else:
+            # 用户不存在，创建新用户
+            user = User()
+            user.uid = openid  # 使用openid作为用户唯一标识
+            user.nickname = f'微信用户_{openid[-6:]}'  # 默认昵称
+            user.avatar = ''  # 默认头像为空
+            user.created_at = datetime.now()
+            
+            insert_user(user)
+            
+            user_data = {
+                'uid': user.uid,
+                'nickname': user.nickname,
+                'avatar': user.avatar,
+                'createdAt': user.created_at.isoformat(),
+                'isNewUser': True
+            }
+        
+        # 返回登录成功结果
+        return make_succ_response({
+            'user': user_data,
+            'sessionKey': session_key,
+            'unionid': unionid
+        })
+        
+    except requests.exceptions.Timeout:
+        return make_err_response('微信登录超时，请稍后重试')
+    except requests.exceptions.RequestException as e:
+        return make_err_response(f'微信登录请求失败: {str(e)}')
+    except Exception as e:
+        return make_err_response(f'登录失败: {str(e)}')

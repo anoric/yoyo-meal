@@ -79,6 +79,19 @@ def query_user_by_uid(uid):
         return None
 
 
+def query_user_by_openid(openid):
+    """
+    根据微信openid查询用户实体
+    :param openid: 微信用户唯一标识
+    :return: User实体
+    """
+    try:
+        return User.query.filter(User.uid == openid).first()
+    except OperationalError as e:
+        logger.info("query_user_by_openid errorMsg= {} ".format(e))
+        return None
+
+
 def insert_user(user):
     """
     插入一个用户实体
