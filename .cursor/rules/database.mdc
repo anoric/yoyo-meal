@@ -1,0 +1,166 @@
+---
+alwaysApply: true
+---
+
+-- =======================================
+-- Database: baby_meal
+-- Version: 2.0
+-- =======================================
+CREATE DATABASE IF NOT EXISTS baby_meal CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE baby_meal;
+
+-- ===========================
+-- 1. 用户表
+-- ===========================
+CREATE TABLE users (
+id CHAR(36) PRIMARY KEY COMMENT '用户 ID',
+nickname VARCHAR(100) COMMENT '用户昵称',
+avatar_url VARCHAR(255) COMMENT '头像 URL',
+created_at DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表（无邮箱密码）';
+
+-- ===========================
+-- 2. 家庭表
+-- ===========================
+CREATE TABLE families (
+id CHAR(36) PRIMARY KEY COMMENT '家庭 ID',
+name VARCHAR(100) NOT NULL COMMENT '家庭名称',
+created_by CHAR(36) NOT NULL COMMENT '创建者用户 ID',
+created_at DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+CONSTRAINT fk_families_created_by FOREIGN KEY (created_by) REFERENCES users(id)
+ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='家庭信息表';
+
+-- ===========================
+-- 3. 家庭成员表
+-- ===========================
+CREATE TABLE family_members (
+family_id CHAR(36) NOT NULL COMMENT '家庭 ID',
+user_id CHAR(36) NOT NULL COMMENT '用户 ID',
+role ENUM('admin', 'member') DEFAULT 'member' COMMENT '成员角色：admin=管理员, member=普通成员',
+joined_at DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3) COMMENT '加入时间',
+PRIMARY KEY (family_id, user_id),
+CONSTRAINT fk_family_members_family FOREIGN KEY (family_id) REFERENCES families(id)
+ON DELETE CASCADE ON UPDATE CASCADE,
+CONSTRAINT fk_family_members_user FOREIGN KEY (user_id) REFERENCES users(id)
+ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='家庭成员关联表';
+
+-- ===========================
+-- 4. 宝宝表
+-- ===========================
+CREATE TABLE babies (
+id CHAR(36) PRIMARY KEY COMMENT '宝宝 ID',
+family_id CHAR(36) NOT NULL COMMENT '所属家庭 ID',
+nickname VARCHAR(100) NOT NULL COMMENT '宝宝昵称',
+gender ENUM('M', 'F') NOT NULL COMMENT '性别：M=男, F=女',
+birth_date DATE NOT NULL COMMENT '出生日期',
+avatar_url VARCHAR(255) COMMENT '头像 URL',
+avoid_ingredients JSON COMMENT '避免食材列表（JSON 数组）',
+created_at DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+CONSTRAINT fk_babies_family FOREIGN KEY (family_id) REFERENCES families(id)
+ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='宝宝信息表';
+
+-- ===========================
+-- 5. 食材表
+-- ===========================
+CREATE TABLE ingredients (
+id CHAR(36) PRIMARY KEY COMMENT '食材 ID',
+name VARCHAR(100) NOT NULL COMMENT '食材名称',
+category VARCHAR(50) COMMENT '分类（如蔬菜、水果、谷物）',
+image_url VARCHAR(255) COMMENT '插画或图片 URL',
+risk_level ENUM('low', 'medium', 'high') DEFAULT 'low' COMMENT '过敏风险等级',
+nutrients JSON COMMENT '营养构成（JSON 格式）',
+summary VARCHAR(255) COMMENT '简述',
+description TEXT COMMENT '详细描述',
+suitable_month_from INT COMMENT '适用起始月龄',
+suitable_month_to INT COMMENT '适用截止月龄',
+updated_at DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '最后更新时间'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统食材库';
+
+-- ===========================
+-- 6. 食材尝试记录表
+-- ===========================
+CREATE TABLE food_trials (
+id CHAR(36) PRIMARY KEY COMMENT '尝试记录 ID',
+baby_id CHAR(36) NOT NULL COMMENT '宝宝 ID',
+ingredient_id CHAR(36) NOT NULL COMMENT '食材 ID',
+trial_date DATE NOT NULL COMMENT '尝试日期',
+trial_count INT DEFAULT 1 COMMENT '尝试次数',
+is_allergic BOOLEAN DEFAULT FALSE COMMENT '是否出现过敏',
+reaction_level ENUM('none', 'mild', 'moderate', 'severe') DEFAULT 'none' COMMENT '反应等级',
+notes TEXT COMMENT '备注',
+created_at DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3) COMMENT '记录创建时间',
+CONSTRAINT fk_trials_baby FOREIGN KEY (baby_id) REFERENCES babies(id)
+ON DELETE CASCADE ON UPDATE CASCADE,
+CONSTRAINT fk_trials_ingredient FOREIGN KEY (ingredient_id) REFERENCES ingredients(id)
+ON DELETE CASCADE ON UPDATE CASCADE,
+INDEX idx_trials_baby (baby_id),
+INDEX idx_trials_ingredient (ingredient_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='食材尝试与过敏记录表';
+
+-- ===========================
+-- 7. 食谱主表（按日期管理）
+-- ===========================
+CREATE TABLE recipes (
+id CHAR(36) PRIMARY KEY COMMENT '食谱 ID',
+baby_id CHAR(36) NOT NULL COMMENT '宝宝 ID',
+recipe_date DATE NOT NULL COMMENT '食谱日期（例如 2025-10-19）',
+created_by CHAR(36) NULL COMMENT '创建者用户 ID（允许为空，避免外键冲突）',
+auto_generated BOOLEAN DEFAULT TRUE COMMENT '是否为系统自动生成',
+notes TEXT COMMENT '备注说明（例如宝宝状态、特殊饮食要求等）',
+created_at DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+CONSTRAINT fk_recipes_baby FOREIGN KEY (baby_id) REFERENCES babies(id)
+ON DELETE CASCADE ON UPDATE CASCADE,
+CONSTRAINT fk_recipes_user FOREIGN KEY (created_by) REFERENCES users(id)
+ON DELETE SET NULL ON UPDATE CASCADE,
+UNIQUE KEY uniq_recipe_per_day (baby_id, recipe_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='宝宝每日食谱主表';
+
+-- ===========================
+-- 8. 食谱项表（每日 5 餐）
+-- ===========================
+CREATE TABLE recipe_items (
+id CHAR(36) PRIMARY KEY COMMENT '食谱项 ID',
+recipe_id CHAR(36) NOT NULL COMMENT '所属食谱 ID',
+meal_type ENUM('breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner') NOT NULL COMMENT '餐别：breakfast=早餐, morning_snack=上午加餐, lunch=午餐, afternoon_snack=下午加餐, dinner=晚餐',
+ingredients JSON COMMENT '所用食材列表（JSON 数组，含食材 ID 和名称）',
+instructions TEXT COMMENT '制作说明或备注（如蒸、煮、混合比例）',
+created_at DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+CONSTRAINT fk_recipe_items_recipe FOREIGN KEY (recipe_id) REFERENCES recipes(id)
+ON DELETE CASCADE ON UPDATE CASCADE,
+UNIQUE KEY uniq_recipe_meal (recipe_id, meal_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='每日 5 餐详细记录表';
+
+-- ===========================
+-- 9. 特殊事件表
+-- ===========================
+CREATE TABLE events (
+id CHAR(36) PRIMARY KEY COMMENT '事件 ID',
+baby_id CHAR(36) NOT NULL COMMENT '宝宝 ID',
+event_type ENUM('illness', 'vaccine', 'other') NOT NULL COMMENT '事件类型：illness=生病, vaccine=打疫苗, other=其他',
+start_date DATE NOT NULL COMMENT '事件开始日期',
+end_date DATE COMMENT '事件结束日期',
+description TEXT COMMENT '描述说明',
+created_at DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3) COMMENT '记录创建时间',
+CONSTRAINT fk_events_baby FOREIGN KEY (baby_id) REFERENCES babies(id)
+ON DELETE CASCADE ON UPDATE CASCADE,
+INDEX idx_events_baby (baby_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='宝宝特殊事件记录表';
+
+-- ===========================
+-- 10. 通知表
+-- ===========================
+CREATE TABLE notifications (
+id CHAR(36) PRIMARY KEY COMMENT '通知 ID',
+user_id CHAR(36) NOT NULL COMMENT '接收用户 ID',
+type ENUM('trial_reminder', 'recipe_update', 'event_alert') NOT NULL COMMENT '通知类型',
+title VARCHAR(255) COMMENT '标题',
+message TEXT COMMENT '内容',
+is_read BOOLEAN DEFAULT FALSE COMMENT '是否已读',
+created_at DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3) COMMENT '通知创建时间',
+CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES users(id)
+ON DELETE CASCADE ON UPDATE CASCADE,
+INDEX idx_notifications_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统通知表';

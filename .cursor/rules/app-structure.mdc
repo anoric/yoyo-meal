@@ -1,0 +1,145 @@
+---
+alwaysApply: true
+---
+
+📁 一、项目结构
+wxcloudrun/
+├── views.py #全部暴露的接口
+├── **init**.py #配置
+├── models/
+│ ├── user.py
+│ ├── family.py
+│ ├── baby.py
+│ ├── ingredient.py
+│ ├── recipe.py
+│ ├── event.py
+│ └── notification.py
+├── resources/
+│ ├── user_resource.py
+│ ├── family_resource.py
+│ ├── baby_resource.py
+│ ├── ingredient_resource.py
+│ ├── recipe_resource.py
+│ ├── event_resource.py
+│ └── notification_resource.py
+└── utils.py #辅助函数
+
+🔐 二、认证（Authentication）
+
+方法 路径 功能
+POST '/api/auth/login 调用微信授权
+
+👤 三、用户接口（Users）
+方法 路径 功能
+POST /users 创建用户（注册）
+GET /users/<id> 获取用户信息
+PATCH /users/<id> 更新用户资料
+DELETE /users/<id> 删除用户
+示例
+POST /users
+{
+"nickname": "妈妈",
+"avatar_url": "https://cdn.app/avatar1.png"
+}
+
+响应
+{
+"id": "uuid",
+"nickname": "妈妈",
+"avatar_url": "https://cdn.app/avatar1.png",
+"created_at": "2025-10-19T01:00:00Z"
+}
+
+👨‍👩‍👧 四、家庭管理（Families）
+方法 路径 功能
+POST /families 创建家庭
+GET /families/<id> 获取家庭信息
+POST /families/<id>/members 邀请或添加家庭成员
+GET /families/<id>/members 获取家庭成员列表
+POST /families
+{
+"name": "小鱼儿之家",
+"created_by": "uuid-user"
+}
+
+👶 五、宝宝管理（Babies）
+方法 路径 功能
+POST /babies 添加宝宝
+GET /babies/<id> 获取宝宝信息
+GET /families/<family_id>/babies 获取家庭下所有宝宝
+PATCH /babies/<id> 更新宝宝信息
+DELETE /babies/<id> 删除宝宝
+POST /babies
+{
+"family_id": "uuid-family",
+"nickname": "小鱼儿",
+"gender": "F",
+"birth_date": "2024-05-01",
+"avoid_ingredients": ["egg", "peanut"]
+}
+
+🍎 六、食材库（Ingredients）
+方法 路径 功能
+GET /ingredients 获取所有食材（分页）
+GET /ingredients/<id> 查看单个食材
+POST /ingredients 添加新食材（仅管理员）
+PATCH /ingredients/<id> 更新食材信息
+GET /ingredients
+
+响应：
+
+[
+{
+"id": "uuid",
+"name": "胡萝卜",
+"category": "蔬菜",
+"risk_level": "low",
+"nutrients": {"vitaminA": 25, "fiber": 1.2}
+}
+]
+
+🧆 七、食谱管理（Recipes）
+方法 路径 功能
+POST /recipes 创建食谱（系统或人工）
+GET /recipes?baby_id=xxx&date=2025-10-19 查询某天的食谱
+GET /babies/<id>/recipes 获取宝宝的全部食谱记录
+PATCH /recipes/<id> 更新食谱备注
+DELETE /recipes/<id> 删除食谱
+POST /recipes
+{
+"baby_id": "uuid-baby",
+"recipe_date": "2025-10-19",
+"auto_generated": true,
+"notes": "系统生成的本周食谱"
+}
+
+🍱 八、食谱项（Recipe Items）
+方法 路径 功能
+POST /recipes/<recipe_id>/items 添加餐次
+GET /recipes/<recipe_id>/items 获取食谱下的所有餐次
+PATCH /recipe-items/<id> 修改餐次内容
+DELETE /recipe-items/<id> 删除餐次
+POST /recipes/<recipe_id>/items
+{
+"meal_type": "lunch",
+"ingredients": [
+{"id": "uuid1", "name": "胡萝卜"},
+{"id": "uuid2", "name": "苹果"}
+],
+"instructions": "蒸熟后搅拌混合"
+}
+
+🩺 九、特殊事件（Events）
+方法 路径 功能
+POST /events 添加事件（生病/疫苗等）
+GET /babies/<baby_id>/events 查看宝宝的所有事件
+PATCH /events/<id> 修改事件信息
+DELETE /events/<id> 删除事件
+POST /events
+{
+"baby_id": "uuid-baby",
+"event_type": "vaccine",
+"start_date": "2025-10-18",
+"end_date": "2025-10-19",
+"description": "接种百白破疫苗"
+}
